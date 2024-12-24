@@ -23,6 +23,7 @@ export default function Home() {
           <li>Counter 1</li>
           <li>Counter 2</li>
           <li>Counter 3</li>
+          <li>Counter 4</li>
         </ul>
       </div>
     </div>
