@@ -3,7 +3,7 @@ import Image from "next/image";
 export default function Admin() {
   return (
     <div className="">
-      <nav>
+      <nav >
         <Image
           src="/ust-long.png"
           alt="UST Logo"
@@ -20,7 +20,8 @@ export default function Admin() {
       
       <div>
         <ul>
-          <li>Counter 1</li>
+          <li>Counter 1 - Sir Harold</li>
+          
           <li>Counter 2</li>
           <li>Counter 3</li>
           <li>Counter 4</li>
