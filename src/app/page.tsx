@@ -24,7 +24,7 @@ export default function Home() {
             <h1 className="text-4xl font-bold">Table</h1>
           </div>
           <div className="border-r-2 px-10 py-4 items-center">
-            <h1 className="text-4xl font-bold">OSA Staff</h1>
+            <h1 className="text-4xl font-bold">OSA Staff Name</h1>
           </div>
           <div className="px-10 py-4 items-center">
             <h1 className="text-4xl font-bold">Queue Number</h1>
