@@ -1,10 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { useState, useEffect } from "react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export default function Admin() {
+  const [isMounted, setIsMounted] = useState(false);
+
   // State for queues
   const [queues, setQueues] = useState([
     { id: "q1", name: "S07" },
@@ -13,10 +18,26 @@ export default function Admin() {
 
   // State for counters
   const [counters, setCounters] = useState({
-    counter1: { name: "Counter 1 - Sir Harold", items: [{ id: "q3", name: "S09" }] },
-    counter2: { name: "Counter 2", items: [] },
-    counter3: { name: "Counter 3", items: [] },
-    counter4: { name: "Counter 4", items: [] },
+    counter1: {
+      id: "counter1",
+      name: "Counter 1 - Sir Harold",
+      items: [{ id: "q3", name: "S09" }],
+    },
+    counter2: {
+      id: "counter2",
+      name: "Counter 2",
+      items: [],
+    },
+    counter3: {
+      id: "counter3",
+      name: "Counter 3",
+      items: [],
+    },
+    counter4: {
+      id: "counter4",
+      name: "Counter 4",
+      items: [],
+    },
   });
 
   // State for search
@@ -27,39 +48,68 @@ export default function Admin() {
     counter4: "",
   });
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Sensors for drag-and-drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement to start dragging
+      },
+    })
+  );
+
   // Handle drag and drop
-  const onDragEnd = (result) => {
-    const { source, destination } = result;
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
 
-    // No destination (dragged outside)
-    if (!destination) return;
+    if (!over || active.id === over.id) return;
 
-    // Reordering within the same column
-    if (source.droppableId === destination.droppableId) {
-      const column = counters[source.droppableId];
-      const reorderedItems = Array.from(column.items);
-      const [movedItem] = reorderedItems.splice(source.index, 1);
-      reorderedItems.splice(destination.index, 0, movedItem);
+    // Find the source and destination columns
+    const sourceColumn = Object.values(counters).find((column) =>
+      column.items.some((item) => item.id === active.id)
+    );
+    const destinationColumn = Object.values(counters).find((column) =>
+      column.items.some((item) => item.id === over.id)
+    );
 
-      setCounters({
-        ...counters,
-        [source.droppableId]: { ...column, items: reorderedItems },
-      });
+    if (!sourceColumn || !destinationColumn) return;
+
+    const sourceIndex = sourceColumn.items.findIndex((item) => item.id === active.id);
+    const destinationIndex = destinationColumn.items.findIndex((item) => item.id === over.id);
+
+    // If moving within the same column
+    if (sourceColumn.id === destinationColumn.id) {
+      const newItems = arrayMove(sourceColumn.items, sourceIndex, destinationIndex);
+
+      setCounters((prevCounters) => ({
+        ...prevCounters,
+        [sourceColumn.id]: {
+          ...sourceColumn,
+          items: newItems,
+        },
+      }));
     } else {
-      // Moving between columns
-      const sourceColumn = counters[source.droppableId];
-      const destColumn = counters[destination.droppableId];
-      const sourceItems = Array.from(sourceColumn.items);
-      const destItems = Array.from(destColumn.items);
+      // If moving between columns
+      const newSourceItems = [...sourceColumn.items];
+      const [movedItem] = newSourceItems.splice(sourceIndex, 1);
 
-      const [movedItem] = sourceItems.splice(source.index, 1);
-      destItems.splice(destination.index, 0, movedItem);
+      const newDestinationItems = [...destinationColumn.items];
+      newDestinationItems.splice(destinationIndex, 0, movedItem);
 
-      setCounters({
-        ...counters,
-        [source.droppableId]: { ...sourceColumn, items: sourceItems },
-        [destination.droppableId]: { ...destColumn, items: destItems },
-      });
+      setCounters((prevCounters) => ({
+        ...prevCounters,
+        [sourceColumn.id]: {
+          ...sourceColumn,
+          items: newSourceItems,
+        },
+        [destinationColumn.id]: {
+          ...destinationColumn,
+          items: newDestinationItems,
+        },
+      }));
     }
   };
 
@@ -68,80 +118,139 @@ export default function Admin() {
     setSearchTerms({ ...searchTerms, [key]: value });
   };
 
+  // Sortable Item Component
+  const SortableItem = ({ id, name }) => {
+    const { attributes, listeners, setNodeRef, transform, transition } =
+      useSortable({ id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-center shadow-sm hover:shadow-md transition-shadow duration-200"
+      >
+        {name}
+      </div>
+    );
+  };
+
+  // Combine all items from all columns for SortableContext
+  const allItems = Object.values(counters).flatMap((column) => column.items);
+
   return (
-    <div className="h-[100dvh] overflow-hidden">
-      <nav className="bg-[#111111] border-[#FCBF15] border-b-4">
-        <Image
-          src="/osa_header.png"
-          alt="UST Logo"
-          width={500}
-          height={200}
-          className="p-3"
-        />
+    <div className="min-h-screen bg-gray-100">
+      {/* Navbar */}
+      <nav className="bg-[#111111] border-b-4 border-[#FCBF15]">
+        <div className="container mx-auto p-4">
+          <Image
+            src="/osa_header.png"
+            alt="UST Logo"
+            width={500}
+            height={200}
+            className="p-3"
+          />
+        </div>
       </nav>
 
       {/* Now Serving Section */}
-      <div className="bg-[#D0D0D0] p-6 text-center">
+      <div className="bg-[#D0D0D0] py-8 text-center">
         <h2 className="text-4xl font-semibold text-gray-800">Now Serving</h2>
-        <h1 className="text-6xl font-extrabold text-[#FCBF15]">
+        <h1 className="text-6xl font-extrabold text-[#FCBF15] mt-2">
           {queues[0]?.name || "No Queue"}
         </h1>
-        <h2 className="text-2xl font-medium text-gray-600 mt-2">
+        <h2 className="text-2xl font-medium text-gray-600 mt-4">
           Proceed to <span className="font-bold">Counter 2</span>
         </h2>
       </div>
 
+      {/* Search Section */}
+      <div className="container mx-auto p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Name</h2>
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#FCBF15]"
+          />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Reason for Visit</h2>
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#FCBF15]"
+          />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Organization</h2>
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#FCBF15]"
+          />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold mb-2">Time</h2>
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#FCBF15]"
+          />
+        </div>
+      </div>
+
       {/* Drag-and-Drop Queues */}
-      <div className="grid grid-cols-4 gap-4 p-6">
-        <DragDropContext onDragEnd={onDragEnd}>
-          {Object.entries(counters).map(([key, column]) => (
-            <Droppable key={key} droppableId={key}>
-              {(provided) => (
-                <div
-                  className="bg-white border border-gray-300 rounded shadow p-4"
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                >
-                  <h2 className="text-xl font-semibold mb-4">{column.name}</h2>
+      <div className="container mx-auto p-6">
+        {isMounted && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={allItems.map((item) => item.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Object.values(counters).map((column) => (
+                  <div
+                    key={column.id}
+                    className="bg-white border border-gray-300 rounded-lg shadow-lg p-4"
+                  >
+                    <h2 className="text-xl font-semibold mb-4">{column.name}</h2>
 
-                  {/* Search Bar */}
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    className="w-full border border-gray-300 rounded p-2 mb-4"
-                    value={searchTerms[key]}
-                    onChange={(e) => handleSearch(key, e.target.value)}
-                  />
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      className="w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-[#FCBF15]"
+                      value={searchTerms[column.id]}
+                      onChange={(e) => handleSearch(column.id, e.target.value)}
+                    />
 
-                  {/* Draggable Items */}
-                  <div className="space-y-2">
-                    {column.items
-                      .filter((item) =>
-                        item.name
-                          .toLowerCase()
-                          .includes(searchTerms[key].toLowerCase())
-                      )
-                      .map((item, index) => (
-                        <Draggable key={item.id} draggableId={item.id} index={index}>
-                          {(provided) => (
-                            <div
-                              className="bg-gray-100 border border-gray-300 rounded p-2 text-center shadow"
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                            >
-                              {item.name}
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                    {provided.placeholder}
+                    <div className="space-y-2">
+                      {column.items
+                        .filter((item) =>
+                          item.name
+                            .toLowerCase()
+                            .includes(searchTerms[column.id].toLowerCase())
+                        )
+                        .map((item) => (
+                          <SortableItem key={item.id} id={item.id} name={item.name} />
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </Droppable>
-          ))}
-        </DragDropContext>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
     </div>
   );
