@@ -56,6 +56,7 @@ interface OfficerQueueCardProps {
   countdownRefs: React.MutableRefObject<Record<string, NodeJS.Timeout>>;
   setCountdowns: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   mutateQueue: () => void;
+  mutateDailyStats: () => void;
   setShowTransferPopup: (show: boolean) => void;
   setSelectedQueueItem: (item: QueueItem | null) => void;
   addToQueue: (officer: Officer) => void;
@@ -77,6 +78,7 @@ export default function OfficerQueueCard({
   countdownRefs,
   setCountdowns,
   mutateQueue,
+  mutateDailyStats,
   setShowTransferPopup,
   setSelectedQueueItem,
   addToQueue,
@@ -213,6 +215,12 @@ export default function OfficerQueueCard({
     
     // Call the original handleStatusChange
     await handleStatusChange(queueId, newStatus, officerName, queueNumber);
+    
+    // Force refresh daily stats after a short delay
+    setTimeout(() => {
+      mutateDailyStats();
+      console.log("Daily stats refreshed for officer:", officer.name);
+    }, 300);
   };
 
   useEffect(() => {
@@ -501,6 +509,8 @@ export default function OfficerQueueCard({
                           .eq("id", queue.id)
                           .then(() => {
                             mutateQueue();
+                            // Refresh daily stats after status change
+                            setTimeout(() => mutateDailyStats(), 200);
                           });
                       }}
                       className="ml-1 p-0.5 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"

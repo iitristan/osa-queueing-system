@@ -447,6 +447,7 @@ export default function AdminClient() {
     setError(null);
 
     try {
+      // Delete all queue items for this officer
       const { error: deleteError } = await supabase
         .from("queue")
         .delete()
@@ -471,7 +472,8 @@ export default function AdminClient() {
         timestamp: new Date().toISOString(),
       });
 
-      mutateQueue();
+      // Update both queue and daily stats
+      await Promise.all([mutateQueue(), mutateDailyStats()]);
     } catch (err) {
       console.error("Error resetting queue:", err);
       setError(err instanceof Error ? err.message : "Failed to reset queue");
@@ -514,8 +516,16 @@ export default function AdminClient() {
         timestamp: new Date().toISOString(),
       });
 
-      // Update both queue and daily stats
-      await Promise.all([mutateQueue(), mutateDailyStats()]);
+      // First update the queue data
+      await mutateQueue();
+
+      // Wait a moment for the database triggers to fire
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Then refresh daily stats
+      await mutateDailyStats();
+
+      console.log("Status changed and stats refreshed for:", queueNumber);
 
       // Start new countdown
       setCountdowns((prev) => ({ ...prev, [queueId]: 3 }));
@@ -525,8 +535,10 @@ export default function AdminClient() {
           if (current <= 1) {
             clearInterval(countdownRefs.current[queueId]);
             delete countdownRefs.current[queueId];
-            // Update both queue and daily stats
-            Promise.all([mutateQueue(), mutateDailyStats()]);
+            // Force refresh both queue and daily stats after countdown
+            mutateQueue().then(() => {
+              setTimeout(() => mutateDailyStats(), 200);
+            });
             return { ...prev, [queueId]: 0 };
           }
           return { ...prev, [queueId]: current - 1 };
@@ -1138,6 +1150,7 @@ export default function AdminClient() {
                   countdownRefs={countdownRefs}
                   setCountdowns={setCountdowns}
                   mutateQueue={mutateQueue}
+                  mutateDailyStats={mutateDailyStats}
                   setShowTransferPopup={setShowTransferPopup}
                   setSelectedQueueItem={setSelectedQueueItem}
                   addToQueue={addToQueue}

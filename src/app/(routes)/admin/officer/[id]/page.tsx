@@ -95,6 +95,9 @@ export default function OfficerProfilePage() {
   const removeFromQueue = async (queueId: string) => {
     try {
       setLoading(true);
+      
+      // Remove queue item directly
+
       const { error } = await supabase.from("queue").delete().eq("id", queueId);
 
       if (error) throw error;
@@ -115,6 +118,7 @@ export default function OfficerProfilePage() {
     setError(null);
 
     try {
+      // Delete all queue items for this officer
       const { error: deleteError } = await supabase
         .from("queue")
         .delete()
